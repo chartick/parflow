@@ -32,10 +32,16 @@ module oas_pfl_mod
   integer :: comp_id, rank, ierror
   integer :: soilliq_id, psi_id, et_id ! coupling field IDs
 
+  character(len=6) :: filename='lnd_in'
+  character(len=100) :: line
+  integer :: ios
+  integer, parameter :: unit_number = 10
+  
   ! TODO: Get these values from eCLM instead of hardcoding it here
   integer :: nlevsoi  = 20 ! Number of hydrologically active soil layers in eCLM
   integer :: nlevgrnd = 25 ! Total number of soil layers in eCLM
 
+    
 contains
 
   subroutine oas_pfl_init(argc) bind(c, name='oas_pfl_init_')
@@ -51,7 +57,29 @@ contains
     if (ierror /= 0) call oasis_abort(comp_id, 'oas_pfl_init', 'oasis_get_localcomm failed.')
 
     call MPI_Comm_Rank(localComm, rank, ierror)
-    if (ierror /= 0) call oasis_abort(comp_id, 'oas_pfl_init', 'MPI_Comm_Rank failed.') 
+    if (ierror /= 0) call oasis_abort(comp_id, 'oas_pfl_init', 'MPI_Comm_Rank failed.')
+    
+    ! Open namelist
+    open(unit=unit_number, file=filename, status='old', action='read', iostat=ierror)
+    
+    ! Check if the namelist was opened successfully
+    if (ierror /= 0) call oasis_abort(comp_id, 'oas_pfl_init', 'lnd_in not found')
+    
+    ! Search for number of soillevels in the namelist
+        do while (nlevsoi == 20 .and. ios == 0)
+            READ(unit_number, '(A)', iostat=ios) line
+            if (ios == 0 .and. index(line, "10SL_3.5m") > 0) then
+                nlevsoi = 10
+                nlevgrnd = 10
+            endif
+        end do
+    
+    ! Close the namelist
+    close(unit_number)
+    
+    ! Print the value of soillevel
+    WRITE(*,*) "The value of nlevsoi is:", nlevsoi 
+  
   end subroutine oas_pfl_init
 
   subroutine oas_pfl_finalize(argc) bind(c, name='oas_pfl_finalize_')
